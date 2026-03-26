@@ -16,7 +16,6 @@ final class GalleryViewModel {
     // MARK: - Bindings
 
     var onItemsUpdated: (() -> Void)?
-    var onFavoritesChanged: (() -> Void)?
     var onError: ((String) -> Void)?
     var onLoadingChanged: ((Bool) -> Void)?
 
@@ -66,7 +65,6 @@ final class GalleryViewModel {
     func toggleFavorite(at index: Int) {
         guard index < items.count else { return }
         storage.toggle(items[index])
-        onFavoritesChanged?()
     }
 
     func isFavorite(at index: Int) -> Bool {
@@ -77,7 +75,10 @@ final class GalleryViewModel {
     func removeItem(at index: Int) {
         guard index < items.count else { return }
         items.remove(at: index)
-        onItemsUpdated?()
+        // NOTE: onItemsUpdated is NOT called here intentionally.
+        // The ViewController handles the visual removal via performBatchUpdates.
+        // Calling reloadData() here alongside deleteItems() would cause a crash
+        // due to data source / collection view count inconsistency.
     }
 
     // MARK: - Private

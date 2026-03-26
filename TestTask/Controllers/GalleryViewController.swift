@@ -66,8 +66,11 @@ final class GalleryViewController: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        // Refresh heart states when returning from Favorites
-        collectionView.reloadData()
+        // Refresh only the favorite icon for each visible cell — avoids full reloadData() flicker
+        collectionView.indexPathsForVisibleItems.forEach { indexPath in
+            guard let cell = collectionView.cellForItem(at: indexPath) as? GifCell else { return }
+            cell.setFavorite(viewModel.isFavorite(at: indexPath.item))
+        }
     }
 
     // MARK: - Setup
@@ -108,10 +111,6 @@ final class GalleryViewController: UIViewController {
             guard let self else { return }
             self.collectionView.reloadData()
             self.emptyStateLabel.isHidden = !self.viewModel.items.isEmpty
-        }
-
-        viewModel.onFavoritesChanged = { [weak self] in
-            self?.collectionView.reloadData()
         }
 
         viewModel.onLoadingChanged = { [weak self] isLoading in
@@ -173,7 +172,6 @@ extension GalleryViewController: UICollectionViewDataSource {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: GifCell.reuseID, for: indexPath) as! GifCell
         let item = viewModel.items[indexPath.item]
         cell.configure(with: item, isFavorite: viewModel.isFavorite(at: indexPath.item))
-        cell.indexPath = indexPath
         cell.delegate = self
         return cell
     }
@@ -186,22 +184,34 @@ extension GalleryViewController: UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
         viewModel.loadNextPageIfNeeded(indexPath: indexPath)
     }
+
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        collectionView.deselectItem(at: indexPath, animated: true)
+        let item = viewModel.items[indexPath.item]
+        present(GifDetailViewController(item: item), animated: false)
+    }
 }
 
 // MARK: - GifCellDelegate
 
 extension GalleryViewController: GifCellDelegate {
 
-    func gifCell(_ cell: GifCell, didTapFavoriteAt indexPath: IndexPath) {
+    func gifCellDidTapFavorite(_ cell: GifCell) {
+        // Resolve live IndexPath at tap time — avoids stale-index issues after deletions
+        guard let indexPath = collectionView.indexPath(for: cell) else { return }
         viewModel.toggleFavorite(at: indexPath.item)
-        let isFav = viewModel.isFavorite(at: indexPath.item)
-        cell.setFavorite(isFav)
+        cell.setFavorite(viewModel.isFavorite(at: indexPath.item))
     }
 
-    func gifCell(_ cell: GifCell, didTapDeleteAt indexPath: IndexPath) {
+    func gifCellDidTapDelete(_ cell: GifCell) {
+        // Resolve live IndexPath at tap time — avoids stale-index issues after deletions
+        guard let indexPath = collectionView.indexPath(for: cell) else { return }
         viewModel.removeItem(at: indexPath.item)
         collectionView.performBatchUpdates {
-            collectionView.deleteItems(at: [indexPath])
+            self.collectionView.deleteItems(at: [indexPath])
+        } completion: { [weak self] _ in
+            guard let self else { return }
+            self.emptyStateLabel.isHidden = !self.viewModel.items.isEmpty
         }
     }
 }

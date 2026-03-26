@@ -17,7 +17,7 @@ final class GiphyService: Sendable {
     private let baseURL = "https://api.giphy.com/v1/gifs"
 
     private init() {}
-
+    
     // MARK: - Trending
 
     nonisolated func fetchTrending(limit: Int = 25, offset: Int = 0) async throws -> [GifItem] {

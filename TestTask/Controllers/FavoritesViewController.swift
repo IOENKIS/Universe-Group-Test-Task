@@ -155,7 +155,6 @@ extension FavoritesViewController: UICollectionViewDataSource {
         let item = viewModel.items[indexPath.item]
         // In Favorites tab: heart is always filled (all are favorites), show only delete
         cell.configure(with: item, isFavorite: true, showFavoriteButton: false, showDeleteButton: true)
-        cell.indexPath = indexPath
         cell.delegate = self
         return cell
     }
@@ -163,20 +162,29 @@ extension FavoritesViewController: UICollectionViewDataSource {
 
 // MARK: - UICollectionViewDelegate
 
-extension FavoritesViewController: UICollectionViewDelegate {}
+extension FavoritesViewController: UICollectionViewDelegate {
+
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        collectionView.deselectItem(at: indexPath, animated: true)
+        let item = viewModel.items[indexPath.item]
+        present(GifDetailViewController(item: item), animated: false)
+    }
+}
 
 // MARK: - GifCellDelegate
 
 extension FavoritesViewController: GifCellDelegate {
 
-    func gifCell(_ cell: GifCell, didTapFavoriteAt indexPath: IndexPath) {
-        // Not shown in Favorites tab, but protocol requires implementation
+    func gifCellDidTapFavorite(_ cell: GifCell) {
+        // Favorite button is hidden in the Favorites tab — no action needed
     }
 
-    func gifCell(_ cell: GifCell, didTapDeleteAt indexPath: IndexPath) {
+    func gifCellDidTapDelete(_ cell: GifCell) {
+        // Resolve live IndexPath at tap time — avoids stale-index issues after deletions
+        guard let indexPath = collectionView.indexPath(for: cell) else { return }
         viewModel.removeItem(at: indexPath.item)
         collectionView.performBatchUpdates {
-            collectionView.deleteItems(at: [indexPath])
+            self.collectionView.deleteItems(at: [indexPath])
         } completion: { [weak self] _ in
             guard let self else { return }
             self.emptyStateView.isHidden = !self.viewModel.items.isEmpty

@@ -8,10 +8,15 @@
 import UIKit
 
 // MARK: - GifCellDelegate
+//
+// The delegate receives the cell itself — NOT a stored IndexPath.
+// The ViewController resolves the live IndexPath via collectionView.indexPath(for:)
+// at the moment of the tap, which prevents stale-index crashes when items are
+// deleted quickly and cells are shifted before the next tap fires.
 
 protocol GifCellDelegate: AnyObject {
-    func gifCell(_ cell: GifCell, didTapFavoriteAt indexPath: IndexPath)
-    func gifCell(_ cell: GifCell, didTapDeleteAt indexPath: IndexPath)
+    func gifCellDidTapFavorite(_ cell: GifCell)
+    func gifCellDidTapDelete(_ cell: GifCell)
 }
 
 // MARK: - GifCell
@@ -23,7 +28,6 @@ final class GifCell: UICollectionViewCell {
     // MARK: - Delegate
 
     weak var delegate: GifCellDelegate?
-    var indexPath: IndexPath?
 
     // MARK: - UI
 
@@ -45,23 +49,25 @@ final class GifCell: UICollectionViewCell {
     }()
 
     private lazy var favoriteButton: UIButton = {
-        let btn = UIButton(type: .system)
+        let btn = UIButton(type: .custom)
         btn.setImage(UIImage(systemName: "heart"), for: .normal)
         btn.setImage(UIImage(systemName: "heart.fill"), for: .selected)
         btn.tintColor = .white
         btn.backgroundColor = UIColor.black.withAlphaComponent(0.35)
         btn.layer.cornerRadius = 16
+        btn.clipsToBounds = true
         btn.translatesAutoresizingMaskIntoConstraints = false
         btn.addTarget(self, action: #selector(favoriteTapped), for: .touchUpInside)
         return btn
     }()
 
     private lazy var deleteButton: UIButton = {
-        let btn = UIButton(type: .system)
+        let btn = UIButton(type: .custom)
         btn.setImage(UIImage(systemName: "trash"), for: .normal)
         btn.tintColor = .white
         btn.backgroundColor = UIColor.black.withAlphaComponent(0.35)
         btn.layer.cornerRadius = 16
+        btn.clipsToBounds = true
         btn.translatesAutoresizingMaskIntoConstraints = false
         btn.addTarget(self, action: #selector(deleteTapped), for: .touchUpInside)
         return btn
@@ -135,7 +141,8 @@ final class GifCell: UICollectionViewCell {
 
     func configure(with item: GifItem, isFavorite: Bool, showFavoriteButton: Bool = true, showDeleteButton: Bool = true) {
         favoriteButton.isSelected = isFavorite
-        favoriteButton.tintColor = isFavorite ? .systemRed : .white
+        favoriteButton.tintColor = .white
+        favoriteButton.backgroundColor = isFavorite ? .systemRed : UIColor.black.withAlphaComponent(0.35)
         favoriteButton.isHidden = !showFavoriteButton
         deleteButton.isHidden = !showDeleteButton
 
@@ -199,13 +206,11 @@ final class GifCell: UICollectionViewCell {
     // MARK: - Actions
 
     @objc private func favoriteTapped() {
-        guard let ip = indexPath else { return }
-        delegate?.gifCell(self, didTapFavoriteAt: ip)
+        delegate?.gifCellDidTapFavorite(self)
     }
 
     @objc private func deleteTapped() {
-        guard let ip = indexPath else { return }
-        delegate?.gifCell(self, didTapDeleteAt: ip)
+        delegate?.gifCellDidTapDelete(self)
     }
 
     // MARK: - Update favorite state
@@ -213,7 +218,8 @@ final class GifCell: UICollectionViewCell {
     func setFavorite(_ isFavorite: Bool) {
         favoriteButton.isSelected = isFavorite
         UIView.animate(withDuration: 0.2) {
-            self.favoriteButton.tintColor = isFavorite ? .systemRed : .white
+            self.favoriteButton.tintColor = .white
+            self.favoriteButton.backgroundColor = isFavorite ? .systemRed : UIColor.black.withAlphaComponent(0.35)
             self.favoriteButton.transform = CGAffineTransform(scaleX: 1.2, y: 1.2)
         } completion: { _ in
             UIView.animate(withDuration: 0.1) {

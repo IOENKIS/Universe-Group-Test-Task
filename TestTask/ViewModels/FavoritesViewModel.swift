@@ -39,7 +39,10 @@ final class FavoritesViewModel {
         guard index < items.count else { return }
         storage.remove(items[index])
         items.remove(at: index)
-        onItemsUpdated?()
+        // NOTE: onItemsUpdated is NOT called here intentionally.
+        // The ViewController handles the visual removal via performBatchUpdates.
+        // Calling reloadData() here alongside deleteItems() would cause a crash
+        // due to data source / collection view count inconsistency.
     }
 
     func isFavorite(at index: Int) -> Bool {

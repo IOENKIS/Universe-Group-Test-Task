@@ -6,11 +6,12 @@
 //
 
 import UIKit
+import ImageIO
 
 // MARK: - ImageLoader
 
 /// Thread-safe async image loader with NSCache.
-/// Marked nonisolated so it can be called from any context.
+/// Decodes animated GIFs via ImageIO so UIImageView plays them automatically.
 final class ImageLoader: Sendable {
 
     static let shared = ImageLoader()
@@ -24,8 +25,8 @@ final class ImageLoader: Sendable {
     nonisolated(unsafe) private var activeTasks: [String: Task<UIImage, Error>] = [:]
 
     private init() {
-        cache.countLimit = 200
-        cache.totalCostLimit = 50 * 1024 * 1024 // 50 MB
+        cache.countLimit = 150
+        cache.totalCostLimit = 80 * 1024 * 1024 // 80 MB (animated frames need more room)
     }
 
     // MARK: - Public API
@@ -47,7 +48,7 @@ final class ImageLoader: Sendable {
         let task = Task<UIImage, Error> { [weak self] in
             guard let self else { throw NetworkError.noData }
             let data = try await NetworkService.shared.fetchData(from: url)
-            guard let image = UIImage(data: data) else {
+            guard let image = Self.decodeImage(from: data) else {
                 throw NetworkError.noData
             }
             self.cache.setObject(image, forKey: key, cost: data.count)
@@ -64,6 +65,41 @@ final class ImageLoader: Sendable {
         }
 
         return try await task.value
+    }
+
+    // MARK: - GIF Decoding
+
+    /// Decodes data into an animated UIImage when the source contains multiple frames
+    /// (e.g. GIF), otherwise falls back to a plain UIImage.
+    private static func decodeImage(from data: Data) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return UIImage(data: data)
+        }
+
+        let frameCount = CGImageSourceGetCount(source)
+        guard frameCount > 1 else {
+            return UIImage(data: data)
+        }
+
+        var frames: [UIImage] = []
+        var totalDuration: TimeInterval = 0
+
+        for i in 0..<frameCount {
+            guard let cgImage = CGImageSourceCreateImageAtIndex(source, i, nil) else { continue }
+            frames.append(UIImage(cgImage: cgImage))
+
+            // Read per-frame delay from GIF metadata
+            let props = CGImageSourceCopyPropertiesAtIndex(source, i, nil) as? [CFString: Any]
+            let gifProps = props?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
+            let delay =
+                (gifProps?[kCGImagePropertyGIFUnclampedDelayTime] as? TimeInterval) ??
+                (gifProps?[kCGImagePropertyGIFDelayTime] as? TimeInterval) ??
+                0.1
+            totalDuration += max(delay, 0.02) // enforce minimum 20 ms/frame
+        }
+
+        guard !frames.isEmpty else { return UIImage(data: data) }
+        return UIImage.animatedImage(with: frames, duration: totalDuration) ?? UIImage(data: data)
     }
 
     nonisolated func clearCache() {
