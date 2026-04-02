@@ -7,6 +7,24 @@
 
 import Foundation
 
+// MARK: - GiphyError
+
+enum GiphyError: LocalizedError {
+    case unauthorized // Error 401: Invalid API key
+    case forbidden    // Error 403: Key blocked
+    case rateLimit    // Error 429: Too many requests
+    case unknown
+    
+    var errorDescription: String? {
+        switch self {
+        case .unauthorized: return "Invalid Giphy API key. Please check your settings."
+        case .forbidden:    return "Access to Giphy is prohibited."
+        case .rateLimit:    return "You have reached the request limit. Please try again later.."
+        case .unknown:      return "An unknown Giphy error has occurred."
+        }
+    }
+}
+
 // MARK: - GiphyService
 
 final class GiphyService: Sendable {

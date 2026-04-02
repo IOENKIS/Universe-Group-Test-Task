@@ -87,6 +87,20 @@ final class GifDetailViewController: UIViewController {
         btn.addTarget(self, action: #selector(shareTapped), for: .touchUpInside)
         return btn
     }()
+    
+    private lazy var favoriteButton: UIButton = {
+        let btn = UIButton(type: .custom)
+        let config = UIImage.SymbolConfiguration(pointSize: 18, weight: .bold)
+        btn.setImage(UIImage(systemName: "heart", withConfiguration: config), for: .normal)
+        btn.setImage(UIImage(systemName: "heart.fill", withConfiguration: config), for: .selected)
+        btn.tintColor = .white
+        btn.backgroundColor = UIColor.white.withAlphaComponent(0.18)
+        btn.layer.cornerRadius = 20
+        btn.clipsToBounds = true
+        btn.translatesAutoresizingMaskIntoConstraints = false
+        btn.addTarget(self, action: #selector(favoriteTapped), for: .touchUpInside)
+        return btn
+    }()
 
     private let titleLabel: UILabel = {
         let lbl = UILabel()
@@ -128,6 +142,7 @@ final class GifDetailViewController: UIViewController {
         setupUI()
         setupGestures()
         loadGif()
+        updateFavoriteState()
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -138,6 +153,7 @@ final class GifDetailViewController: UIViewController {
         scrollView.transform = CGAffineTransform(scaleX: 0.88, y: 0.88)
         closeButton.alpha  = 0
         shareButton.alpha  = 0
+        favoriteButton.alpha = 0
         titleLabel.alpha   = 0
         swipeHintLabel.alpha = 0
     }
@@ -156,6 +172,7 @@ final class GifDetailViewController: UIViewController {
             self.scrollView.transform = .identity
             self.closeButton.alpha  = 1
             self.shareButton.alpha  = 1
+            self.favoriteButton.alpha = 1
             self.titleLabel.alpha   = 1
         }
         UIView.animate(withDuration: 0.6, delay: 0.5) {
@@ -175,6 +192,7 @@ final class GifDetailViewController: UIViewController {
         view.addSubview(activityIndicator)
         view.addSubview(closeButton)
         view.addSubview(shareButton)
+        view.addSubview(favoriteButton)
         view.addSubview(titleLabel)
         view.addSubview(swipeHintLabel)
 
@@ -218,6 +236,12 @@ final class GifDetailViewController: UIViewController {
             shareButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             shareButton.widthAnchor.constraint(equalToConstant: 40),
             shareButton.heightAnchor.constraint(equalToConstant: 40),
+            
+            // Favorite (left from share button)
+            favoriteButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+            favoriteButton.trailingAnchor.constraint(equalTo: shareButton.leadingAnchor, constant: -12),
+            favoriteButton.widthAnchor.constraint(equalToConstant: 40),
+            favoriteButton.heightAnchor.constraint(equalToConstant: 40),
 
             // Title (bottom)
             titleLabel.bottomAnchor.constraint(equalTo: swipeHintLabel.topAnchor, constant: -6),
@@ -296,6 +320,27 @@ final class GifDetailViewController: UIViewController {
             let rect  = CGRect(x: point.x - 60, y: point.y - 60, width: 120, height: 120)
             scrollView.zoom(to: rect, animated: true)
         }
+    }
+    
+    @objc private func favoriteTapped() {
+        let willBeFavorite = !favoriteButton.isSelected
+        
+        FavoritesStorage.shared.toggle(item)
+        
+        UIView.animate(withDuration: 0.2, animations: {
+            self.favoriteButton.isSelected = willBeFavorite
+            self.favoriteButton.backgroundColor = willBeFavorite ?
+                .systemRed.withAlphaComponent(0.8) :
+                .white.withAlphaComponent(0.18)
+            
+            self.favoriteButton.transform = CGAffineTransform(scaleX: 1.3, y: 1.3)
+        }) { _ in
+            UIView.animate(withDuration: 0.1) {
+                self.favoriteButton.transform = .identity
+            }
+        }
+        
+        UISelectionFeedbackGenerator().selectionChanged()
     }
 
     // MARK: - Pan gesture (swipe-down to dismiss)
@@ -378,6 +423,17 @@ final class GifDetailViewController: UIViewController {
         } completion: { _ in
             self.dismiss(animated: false)
         }
+    }
+    
+    // MARK: - Helpers
+    
+    private func updateFavoriteState() {
+        let isFav = FavoritesStorage.shared.isFavorite(item)
+        favoriteButton.isSelected = isFav
+        // Якщо вибрано — робимо кнопку червоною, якщо ні — напівпрозорою білою
+        favoriteButton.backgroundColor = isFav ?
+            .systemRed.withAlphaComponent(0.8) :
+            .white.withAlphaComponent(0.18)
     }
 }
 

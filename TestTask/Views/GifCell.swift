@@ -72,6 +72,17 @@ final class GifCell: UICollectionViewCell {
         btn.addTarget(self, action: #selector(deleteTapped), for: .touchUpInside)
         return btn
     }()
+    
+    private let errorImageView: UIImageView = {
+        let iv = UIImageView()
+        iv.image = UIImage(systemName: "photo.badge.exclamationmark")
+        iv.tintColor = .systemGray
+        iv.contentMode = .center
+        iv.translatesAutoresizingMaskIntoConstraints = false
+        iv.isHidden = true
+        iv.alpha = 0
+        return iv
+    }()
 
     // MARK: - Image loading
 
@@ -96,6 +107,8 @@ final class GifCell: UICollectionViewCell {
         imageTask = nil
         imageView.image = nil
         imageView.alpha = 0
+        errorImageView.isHidden = true
+        errorImageView.alpha = 0
         shimmerView.isHidden = false
         startShimmer()
     }
@@ -153,6 +166,8 @@ final class GifCell: UICollectionViewCell {
     // MARK: - Image loading
 
     private func loadImage(from url: URL) {
+        errorImageView.isHidden = true
+        errorImageView.alpha = 0
         imageTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -168,6 +183,11 @@ final class GifCell: UICollectionViewCell {
                 guard !Task.isCancelled else { return }
                 self.shimmerView.isHidden = true
                 self.stopShimmer()
+                
+                self.errorImageView.isHidden = false
+                UIView.animate(withDuration: 0.3) {
+                    self.errorImageView.alpha = 1
+                }
             }
         }
     }

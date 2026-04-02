@@ -54,7 +54,12 @@ final class NetworkService: Sendable {
             throw NetworkError.invalidResponse
         }
         guard (200...299).contains(httpResponse.statusCode) else {
-            throw NetworkError.statusCode(httpResponse.statusCode)
+            switch httpResponse.statusCode {
+            case 401: throw GiphyError.unauthorized
+            case 403: throw GiphyError.forbidden
+            case 429: throw GiphyError.rateLimit
+            default:  throw NetworkError.statusCode(httpResponse.statusCode)
+            }
         }
 
         do {
