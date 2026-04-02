@@ -8,21 +8,17 @@
 import UIKit
 import ImageIO
 
-// MARK: - ImageLoader
+// MARK: - ImageLoader (Actor version)
 
-/// Thread-safe async image loader with NSCache.
-/// Decodes animated GIFs via ImageIO so UIImageView plays them automatically.
-final class ImageLoader: Sendable {
+///Actor automatically ensures that only one thread has access to its properties.
+///This removes the need for NSLock and nonisolated(unsafe).
+actor ImageLoader {
 
     static let shared = ImageLoader()
 
     // NSCache is thread-safe internally
     private let cache = NSCache<NSString, UIImage>()
-
-    // Protects activeTasks dictionary
-    private let lock = NSLock()
-    // nonisolated(unsafe) because we manage access manually via lock
-    nonisolated(unsafe) private var activeTasks: [String: Task<UIImage, Error>] = [:]
+    private var activeTasks: [String: Task<UIImage, Error>] = [:]
 
     private init() {
         cache.countLimit = 150
@@ -31,7 +27,7 @@ final class ImageLoader: Sendable {
 
     // MARK: - Public API
 
-    nonisolated func loadImage(from url: URL) async throws -> UIImage {
+    func loadImage(from url: URL) async throws -> UIImage {
         let key = url.absoluteString as NSString
         let urlString = url.absoluteString
 
@@ -39,9 +35,7 @@ final class ImageLoader: Sendable {
             return cached
         }
 
-        lock.lock()
         if let existing = activeTasks[urlString] {
-            lock.unlock()
             return try await existing.value
         }
 
@@ -51,17 +45,13 @@ final class ImageLoader: Sendable {
             guard let image = Self.decodeImage(from: data) else {
                 throw NetworkError.noData
             }
-            self.cache.setObject(image, forKey: key, cost: data.count)
+            await self.cache.setObject(image, forKey: key, cost: data.count)
             return image
         }
 
         activeTasks[urlString] = task
-        lock.unlock()
-
         defer {
-            lock.lock()
             activeTasks.removeValue(forKey: urlString)
-            lock.unlock()
         }
 
         return try await task.value
@@ -102,11 +92,9 @@ final class ImageLoader: Sendable {
         return UIImage.animatedImage(with: frames, duration: totalDuration) ?? UIImage(data: data)
     }
 
-    nonisolated func clearCache() {
+    func clearCache() {
         cache.removeAllObjects()
-        lock.lock()
         activeTasks.values.forEach { $0.cancel() }
         activeTasks.removeAll()
-        lock.unlock()
     }
 }
